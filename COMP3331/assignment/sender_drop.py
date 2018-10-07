@@ -59,7 +59,7 @@ def main():
 	except:
 		sys.exit("ERROR: cannot read the file")
 
-	transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop)
+	transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed)
 
 	#senderSocket.send(data)
 
@@ -67,6 +67,61 @@ def main():
 
 	# senderSocket.close()
 	fourseg_termination(senderSocket, addr, sender_log, start_time)
+
+
+def fourseg_termination(senderSocket, addr, sender_log, start_time):
+
+	global state
+
+	seq = random.randint(1,9)
+	# set FIN
+	flag = 0b001
+
+	pkt_1 = packet(seq, 0, '', flag, -2)
+
+	senderSocket.sendto(str(pkt_1), addr)
+
+	curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+	log_data = "snd\t"+str(curr_time)+"\tF\t"+str(seq)+'\t'+ str(len(get_data(pkt_1)))+'\t'+str(get_ack(pkt_1))+'\n'
+	sender_log.write(log_data)
+
+	while True:
+		try:
+			msg, address = senderSocket.recvfrom(1024)
+			pkt_receive = eval(msg)
+
+
+			if(is_fin(pkt_receive)):
+
+				curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+				log_data = "rcv\t"+str(curr_time)+"\tF\t"+str(get_seq(pkt_receive))+'\t'+ str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
+				sender_log.write(log_data)
+
+				seq = get_ack(pkt_receive)
+				ack = get_seq(pkt_receive)+1
+
+				# set ACK_BIT to 1
+				flag = 0b010
+				pkt_2 = packet(seq, ack, "", flag, -2)
+
+				senderSocket.sendto(str(pkt_2), addr)
+
+				log_data = "snd\t"+str(curr_time)+"\tA\t"+str(seq)+'\t'+ str(len(get_data(pkt_2)))+'\t'+str(get_ack(pkt_2))+'\n' 
+				sender_log.write(log_data)
+
+				state = STATE_END
+				sender_log.close()
+
+				sys.exit()
+
+			else:
+				curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+				log_data = "rcv\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt_receive))+'\t'+ str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
+				sender_log.write(log_data)
+
+		except socket.timeout:
+			print("TIME OUT in terminate")
+			sys.exit()
 
 def threeway_handshake(senderSocket,addr, start_time, seed, sender_log):
 	global state
@@ -141,7 +196,7 @@ def threeway_handshake(senderSocket,addr, start_time, seed, sender_log):
 		print("time out in handshake")
 		sys.exit()
 
-
+'''
 def PLD(log,start,sender, p, addr,pdrop):
 
 	rand = random.random()
@@ -154,8 +209,73 @@ def PLD(log,start,sender, p, addr,pdrop):
 		curr_time = time.time()*1000-start
 		msg = 'drop\t'+str(curr_time)+'\tD\t'+str(get_seq(p))+'\t'+str(len(get_data(p)))+'\t'+str(get_ack(p))+'\n'
 		log.write(msg)
+'''
+def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed, re_order_window, re_order_counter):
+	ran = random.random()
+	if(len(re_order_window) != 0):
+		if(re_order_counter == maxOrder):
+			senderSocket.sendto(str(pkt), addr)
+			curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
+			log_data = "snd/rord\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+			sender_log.write(log_data)
 
-def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
+			re_order_counter = 0
+			re_order_window.remove(0)
+
+		else:
+			re_order_counter = re_order_counter + 1
+
+	if(ran < pDrop):
+		sent = 0
+		curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
+		log_data = "drop\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+		sender_log.write(log_data)
+
+	else:
+		ran = random.random()
+		if(ran < pDuplicate):
+			senderSocket.sendto(str(pkt), addr)
+			senderSocket.sendto(str(pkt), addr)
+			curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
+			log_data = "snd/dup\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+			sender_log.write(log_data)
+		else:
+			ran = random.random()
+			if(ran < pCorrupt):
+
+				newpkt = sender_checksum_withError(pkt)
+
+				senderSocket.sendto(str(newpkt), addr)
+				curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
+				log_data = "snd/corr\t"+str(curr_time)+'\tD\t'+str(get_seq(newpkt))+'\t'+str(len(get_data(newpkt)))+'\t'+str(get_ack(newpkt))+'\n'
+				sender_log.write(log_data)
+
+			else:
+				ran = random.random()
+				if(ran < pOrder):
+					if(len(re_order_window) == 0):
+						re_order_window.append(pkt)
+						re_order_counter = 0
+				else:
+					ran = random.random()
+					if(ran < pDelay):
+						time.sleep()
+						delay = random.uniform(0, maxDelay)
+						senderSocket.sendto(str(pkt), addr)
+						curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
+						log_data = "snd/dely\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+						sender_log.write(log_data)
+
+					else:
+						senderSocket.sendto(str(pkt), addr)
+						curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
+						log_data = "snd\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+						sender_log.write(log_data)
+
+	return [re_order_window, re_order_counter]
+
+
+def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed):
 
 	baseTime = time.time()*1000
 	pre_ack = -1
@@ -169,6 +289,8 @@ def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
 	TimeoutInterval = EstimatedRTT + 4*DevRTT
 
 	window = []
+	re_order_window = []
+	re_order_counter = 0
 
 	seq = 0
 
@@ -176,6 +298,7 @@ def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
 
 		window_size = mws/mss
 
+		# timeout
 		if(time.time()*1000 - baseTime >= TimeoutInterval and len(window) > 0 and int(windowBase) == int(get_seq(window[0]))):
 			baseWindowSeq = int(get_seq(window[0]))
 			baseTime = time.time()*1000
@@ -187,34 +310,18 @@ def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
 				pkt_data = data[baseWindowSeq:]
 
 			flag = 0b000
-			pkt = packet(baseWindowSeq, 1, pkt_data, flag, -2)
+			checksum = calculate_checksum(pkt_data)
+			pkt = packet(baseWindowSeq, 1, pkt_data, flag, checksum)
+
+			'''
 			PLD(sender_log,start_time,senderSocket, pkt, addr,pDrop)
+			'''
+			re_order_pkt = PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed, re_order_window, re_order_counter)
+			re_order_window = re_order_pkt[0]
+			re_order_counter = re_order_pkt[1]
+
 
 		while(not window or len(window) < window_size and seq <= len(data)):
-			# timeout 
-			'''
-			if(time.time()*1000 - baseTime >= TimeoutInterval and len(window) > 0 and int(windowBase) == int(get_seq(window[0]))):
-				baseWindowSeq = int(get_seq(window[0]))
-				baseTime = time.time()*1000
-
-				# see whether the data seg can hold the rest of data
-				if((int(get_seq(window[0]))+mss) < len(data)):
-					pkt_data = data[baseWindowSeq:(baseWindowSeq+mss)]
-				else:
-					pkt_data = data[baseWindowSeq:]
-
-				flag = 0b000
-				pkt = packet(baseWindowSeq, 1, pkt_data, flag)
-				PLD(sender_log,start_time,senderSocket, pkt, addr,pDrop)
-			
-				senderSocket.sendto(str(pkt), addr)
-
-				
-				curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-				senderSocket.sendto(str(pkt), addr)
-				log_data = "snd/Time\t"+str(curr_time)+"\tD\t"+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
-				sender_log.write(log_data)
-			'''
 
 			if((seq+mss) < len(data)):
 				pkt_data = data[seq:seq+mss]
@@ -222,18 +329,20 @@ def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
 				pkt_data = data[seq:]
 
 			flag = 0b000
-			pkt = packet(seq, 1, pkt_data, flag, -2)
+			checksum = calculate_checksum(pkt_data)
+			pkt = packet(seq, 1, pkt_data, flag, checksum)
 
 			window.append(pkt)
 			windowBase = int(get_seq(window[0]))
 			seq = seq+mss
+			'''
 			PLD(sender_log,start_time,senderSocket, pkt, addr,pDrop)
 			'''
-			curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-			senderSocket.sendto(str(pkt), addr)
-			log_data = "snd\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
-			sender_log.write(log_data)
-			'''
+			re_order_pkt = PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed, re_order_window, re_order_counter)
+			re_order_window = re_order_pkt[0]
+			re_order_counter = re_order_pkt[1]
+			
+
 
 		try:
 			msg, address = senderSocket.recvfrom(1024)
@@ -259,14 +368,16 @@ def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
 						pkt_data = data[seq :]
 
 					flag = 0b000
-					pkt = packet(seq, 1, pkt_data, flag, -2)
+					checksum = calculate_checksum(pkt_data)
+					pkt = packet(seq, 1, pkt_data, flag, checksum)
+					'''
 					PLD(sender_log,start_time,senderSocket, pkt, addr,pDrop)
 					'''
-					senderSocket.sendto(str(pkt), addr)
-					curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-					log_data = "snd/fast\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
-					sender_log.write(log_data)
-					'''
+					re_order_pkt = PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed, re_order_window, re_order_counter)
+					re_order_window = re_order_pkt[0]
+					re_order_counter = re_order_pkt[1]
+
+
 
 				pre_ack = int(get_ack(pkt_receive))
 
@@ -280,79 +391,8 @@ def transfer(senderSocket, addr, data, sender_log, start_time, mws, mss, pDrop):
 
 		except socket.timeout:
 			'''
-			seq = int(get_seq(window[0]))
-			if(seq + mss < len(data)):
-				pkt_data = data[seq:seq+mss]
-			else:
-				pkt_data = data[seq:]
-			flag = 0b000
-			pkt = packet(seq, 1, pkt_data, flag, -2)
-			
-			curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-			log_data = "snd/Stimeout\t"+str(curr_time)+'\t'+str(seq)+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
-			sender_log.write(log_data)
-	
-			PLD(sender_log,start_time,senderSocket, pkt, addr,pDrop)
+			print("timeout")
 			'''
-							
-
-
-
-def fourseg_termination(senderSocket, addr, sender_log, start_time):
-
-	global state
-
-	seq = random.randint(1,9)
-	# set FIN
-	flag = 0b001
-
-	pkt_1 = packet(seq, 0, '', flag, -2)
-
-	senderSocket.sendto(str(pkt_1), addr)
-
-	curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-	log_data = "snd\t"+str(curr_time)+"\tF\t"+str(seq)+'\t'+ str(len(get_data(pkt_1)))+'\t'+str(get_ack(pkt_1))+'\n'
-	sender_log.write(log_data)
-
-	while True:
-		try:
-			msg, address = senderSocket.recvfrom(1024)
-			pkt_receive = eval(msg)
-
-
-			if(is_fin(pkt_receive)):
-
-				curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-				log_data = "rcv\t"+str(curr_time)+"\tF\t"+str(get_seq(pkt_receive))+'\t'+ str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
-				sender_log.write(log_data)
-
-				seq = get_ack(pkt_receive)
-				ack = get_seq(pkt_receive)+1
-
-				# set ACK_BIT to 1
-				flag = 0b010
-				pkt_2 = packet(seq, ack, "", flag, -2)
-
-				senderSocket.sendto(str(pkt_2), addr)
-
-				log_data = "snd\t"+str(curr_time)+"\tA\t"+str(seq)+'\t'+ str(len(get_data(pkt_2)))+'\t'+str(get_ack(pkt_2))+'\n' 
-				sender_log.write(log_data)
-
-				state = STATE_END
-				sender_log.close()
-
-				sys.exit()
-
-			else:
-				curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-				log_data = "rcv\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt_receive))+'\t'+ str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
-				sender_log.write(log_data)
-
-		except socket.timeout:
-			print("TIME OUT in terminate")
-			sys.exit()
-
-
 
 
 
