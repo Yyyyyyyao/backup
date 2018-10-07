@@ -109,93 +109,104 @@ def main():
 	    
 	    elif(state == STATE_TRANS):
 	    	'''
-	    	if(not is_ack(pkt_receive)):
+	    	seq_receive = int(get_seq(pkt_receive))
+	    	data_length = int(len(get_data(pkt_receive)))
+	    	data = str(get_data(pkt_receive))
+	    	checksum_header = get_checksum(pkt_receive)
+	    	checksum_data = calculate_checksum(data)
+	    	if(checksum_data == checksum_header):
+		    	if(is_ack(pkt_receive)):
+		    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+		    		log_data = "rcv\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
+		    		receiver_log.write(log_data)
+		    	else:
 
-	    		if(int(get_seq(pkt_receive)) == 0 and not first_pkt):
+		    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+		    		log_data = "rcv\t"+str(curr_time)+"\tD\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
+		    		receiver_log.write(log_data)
 
-	    			first_pkt = True
-	    			cumulated_ack = int(get_seq(pkt_receive))+int(len(get_data(pkt_receive)))
-	    			write_to_file(file_name, str(get_data(pkt_receive)))
-	    		elif (cumulated_ack == int(get_seq(pkt_receive)) and first_pkt):
+		    		#if(seq_receive == 0 and not first_pkt):
 
-	    			if(not rcv_buffer):
-	    				cumulated_ack = int(get_seq(pkt_receive))+int(len(get_data(pkt_receive)))
-	    				write_to_file(file_name, str(get_data(pkt_receive)))
-	    			else:
-	    				write_to_file(file_name, str(get_data(pkt_receive)))
-	    				cumulated_ack = int(get_seq(pkt_receive))+int(len(get_data(pkt_receive)))
-	    				for z in rcv_buffer:
-	    					if (int(cumulated_ack) ==int(get_seq(z))):
-	    						write_to_file(file_name, str(get_data(z)))
-	    						cumulated_ack = int(get_seq(z))+int(len(get_data(z)))
-	    				rcv_buffer[:] = [value for value in rcv_buffer if int(get_seq(value)) > int(cumulated_ack)]
+		    		#	first_pkt = True
+		    		#	cumulated_ack = seq_receive+data_length
+		    		#	write_to_file(file_name, str(get_data(pkt_receive)))
+		    		if (cumulated_ack == seq_receive):
 
-	    		else:
-	    			rcv_buffer.append(pkt_receive)
+		    			if(not rcv_buffer):
+		    				cumulated_ack = seq_receive+data_length
+		    				write_to_file(file_name, str(get_data(pkt_receive)))
+		    			else:
+		    				write_to_file(file_name, str(get_data(pkt_receive)))
+		    				cumulated_ack = seq_receive+data_length
+		    				for z in rcv_buffer:
+		    					if (int(cumulated_ack) ==int(get_seq(z))):
+		    						write_to_file(file_name, str(get_data(z)))
+		    						cumulated_ack = int(get_seq(z))+int(len(get_data(z)))
+		    				rcv_buffer[:] = [value for value in rcv_buffer if int(get_seq(value)) > int(cumulated_ack)]
 
-	    		flag = 0b010
-	    		pkt = packet(1, cumulated_ack, '', flag, -2)
-	    		receiverSocket.sendto(str(pkt), addr)
+		    		else:
+		    			rcv_buffer.append(pkt_receive)
+
+		    		flag = 0b010
+		    		pkt = packet(1, cumulated_ack, '', flag, -2)
+		    		receiverSocket.sendto(str(pkt), addr)
+		    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+		    		log_data = "snd\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+		    		receiver_log.write(log_data)
+
 
 	    	'''
 	    	seq_receive = int(get_seq(pkt_receive))
 	    	data_length = int(len(get_data(pkt_receive)))
 	    	data = str(get_data(pkt_receive))
+	    	checksum_header = get_checksum(pkt_receive)
+	    	checksum_data = calculate_checksum(data)
 
-	    	if(is_ack(pkt_receive)):
-	    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-	    		log_data = "rcv\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
-	    		receiver_log.write(log_data)
+	    	if(checksum_data == checksum_header):
 
-	    	else:
+		    	if(is_ack(pkt_receive)):
+		    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+		    		log_data = "rcv\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
+		    		receiver_log.write(log_data)
 
-	    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-	    		log_data = "rcv\t"+str(curr_time)+"\tD\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
-	    		receiver_log.write(log_data)
+		    	else:
 
+		    		curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+		    		log_data = "rcv\t"+str(curr_time)+"\tD\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
+		    		receiver_log.write(log_data)
+		    		
+		    		if(cumulated_ack == seq_receive):
 
-	    		if(seq_receive != cumulated_ack):
-	    			rcv_buffer.append(pkt_receive)
-
-
-	    		elif(seq_receive == cumulated_ack):
-
-	    			# rcv_buffer is empty 
-	    			if(not rcv_buffer):
-	    				cumulated_ack = seq_receive + data_length
-	    				file = open(file_name, 'ab')
-	    				file.write(data)
-	    				file.close()
-
-	    			else:
-	    				# if the buffer is not empty
-	    				# first write the expected arrived pkt
-	    				cumulated_ack = seq_receive + data_length
-	    				file = open(file_name, 'ab')
-	    				file.write(data)
-	    				file.close()
+		    			# rcv_buffer is empty 
+		    			if(not rcv_buffer):
+		    				cumulated_ack = seq_receive + data_length
+		    				write_to_file(file_name, str(get_data(pkt_receive)))
 
 
-						# write the out of order pkts in the buffer
-	    				for pkt in rcv_buffer:
-	    					if(cumulated_ack == int(get_seq(pkt))):
-	    						file = open(file_name, 'ab')
-	    						file.write(data)
-	    						file.close()
-	    						cumulated_ack = int(get_seq(pkt))+int(len(get_data(pkt)))
+		    			else:
+		    				# if the buffer is not empty
+		    				# first write the expected arrived pkt
+		    				write_to_file(file_name, str(get_data(pkt_receive)))
+		    				cumulated_ack = seq_receive + data_length
 
-	    				rcv_buffer[:] = [pkt for pkt in rcv_buffer if int(get_seq(pkt)) > int(cumulated_ack)]
+							# write the out of order pkts in the buffer
+		    				for pkt in rcv_buffer:
+		    					if(int(cumulated_ack) == int(get_seq(pkt))):
+		    						write_to_file(file_name, str(get_data(pkt)))
+		    						cumulated_ack = int(get_seq(pkt))+int(len(get_data(pkt)))
+
+		    				rcv_buffer[:] = [pkt for pkt in rcv_buffer if int(get_seq(pkt)) > int(cumulated_ack)]
+		    		else:
+		    			rcv_buffer.append(pkt_receive)
 
 
-				flag = 0b010
-				pkt = packet(1, str(cumulated_ack), '', flag, -2)
-				receiverSocket.sendto(str(pkt), addr)
+					flag = 0b010
+					pkt = packet(1, str(cumulated_ack), '', flag, -2)
+					receiverSocket.sendto(str(pkt), addr)
 
-				curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
-				log_data = "snd\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
-				receiver_log.write(log_data)
-				
-
+					curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
+					log_data = "snd\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
+					receiver_log.write(log_data)
 
 
 def write_to_file(filename, data):
