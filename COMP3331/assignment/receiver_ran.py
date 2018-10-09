@@ -72,9 +72,27 @@ def main():
 			log_data = "rcv\t"+str(curr_time)+"\tA\t"+str(get_seq(pkt_receive))+'\t'+str(len(get_data(pkt_receive)))+'\t'+str(get_ack(pkt_receive))+'\n'
 			total_seg = total_seg + 1
 			total_data_seg = total_seg - 4
-
-			print(total_dup_receive)
 			receiver_log.write(log_data)
+			log_data_structure = "===================================================================================\n"
+			receiver_log.write(log_data_structure)
+
+			str1 = "Amount of the data received (bytes)\t\t" + str(total_data)+'\n'
+			str2 = "Total Segments Received\t\t\t\t\t"+str(total_seg)+'\n'
+			str3 = "Data segments received\t\t\t\t\t"+str(total_data_seg)+'\n'
+			str4 = "Data segemnts with Bit Errors\t\t\t"+str(total_error)+'\n'
+			str5 = "Duplicate data segments received\t\t"+str(total_dup_receive)+'\n'
+			str6 = "Duplicate ACKS sent\t\t\t\t\t\t"+str(total_Dup_ACKs_sent)+'\n'
+
+			receiver_log.write(str1)
+			receiver_log.write(str2)
+			receiver_log.write(str3)
+			receiver_log.write(str4)
+			receiver_log.write(str5)
+			receiver_log.write(str6)
+			receiver_log.write(log_data_structure)
+
+			
+			receiver_log.close()
 			sys.exit()
 
 	    elif(is_fin(pkt_receive)):
@@ -85,8 +103,7 @@ def main():
 	    	total_seg = total_seg + 1
 	    	receiver_log.write(log_data)
 
-
-	    	total_data = int(get_ack(pkt_receive)) - ini_rcv_seq
+	    	total_data = int(get_seq(pkt_receive)) - ini_rcv_seq
 
 	    	ack = get_seq(pkt_receive)+1
 	    	seq = get_ack(pkt_receive)
@@ -133,8 +150,6 @@ def main():
 
 	    		cumulated_ack = ack
 
-	    		ini_rcv_seq = ack
-
 	    		log_data = "snd\t"+str(curr_time)+"\tSA\t"+str(seq)+'\t'+ str(len(get_data(pkt_1)))+'\t'+str(get_ack(pkt_1))+'\n'
 	    		receiver_log.write(log_data)
 	    
@@ -165,6 +180,7 @@ def main():
 
 		    		if(seq_receive == seq and not first_pkt):
 
+		    			ini_rcv_seq = int(get_seq(pkt_receive))
 		    			first_pkt = True
 		    			cumulated_ack = seq_receive+data_length
 		    			write_to_file(file_name, str(get_data(pkt_receive)))
