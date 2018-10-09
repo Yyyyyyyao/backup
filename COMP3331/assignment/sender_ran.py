@@ -20,6 +20,7 @@ state = STATE_INIT
 def fourseg_termination(seq, senderSocket, addr, sender_log, start_time):
 
 	global state
+	global total_segments
 
 	# set FIN
 	flag = 0b001
@@ -27,6 +28,7 @@ def fourseg_termination(seq, senderSocket, addr, sender_log, start_time):
 	pkt_1 = packet(seq, 0, '', flag, -2)
 
 	senderSocket.sendto(str(pkt_1), addr)
+	total_segments = total_segments + 1
 
 	curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
 	log_data = "snd\t"+str(curr_time)+"\tF\t"+str(seq)+'\t'+ str(len(get_data(pkt_1)))+'\t'+str(get_ack(pkt_1))+'\n'
@@ -52,11 +54,40 @@ def fourseg_termination(seq, senderSocket, addr, sender_log, start_time):
 				pkt_2 = packet(seq, ack, "", flag, -2)
 
 				senderSocket.sendto(str(pkt_2), addr)
+				total_segments = total_segments + 1
 
 				log_data = "snd\t"+str(curr_time)+"\tA\t"+str(seq)+'\t'+ str(len(get_data(pkt_2)))+'\t'+str(get_ack(pkt_2))+'\n' 
 				sender_log.write(log_data)
 
 				state = STATE_END
+				log_data_structure = "===================================================================================\n"
+				sender_log.write(log_data_structure)
+
+				str1 = "Size of the file (in Bytes)\t\t\t\t\t\t\t" + str(total_data)+'\n'
+				str2 = "Segments transmitted (including drop & RXT)\t\t\t"+str(total_segments)+'\n'
+				str3 = "Number of Segments handled by PLD\t\t\t\t\t"+str(total_PLD)+'\n'
+				str4 = "Number of Segments dropped\t\t\t\t\t\t\t"+str(total_drop)+'\n'
+				str5 = "Number of Segments Corrupted\t\t\t\t\t\t"+str(total_corr)+'\n'
+				str6 = "Number of Segments Re-ordered\t\t\t\t\t\t"+str(total_reorder)+'\n'
+				str7 = "Number of Segments Duplicated\t\t\t\t\t\t"+str(total_dup)+'\n'
+				str8 = "Number of Segments Delayed\t\t\t\t\t\t\t"+str(total_delay)+'\n'
+				str9 = "Number of Retransmissions due to TIMEOUT\t\t\t"+str(total_timeout)+'\n'
+				str10 = "Number of Fast RETRANSMISSION\t\t\t\t\t\t"+str(total_fast)+'\n'
+				str11 = "Number of DUP ACKS received\t\t\t\t\t\t\t"+str(total_dupack)+'\n'
+
+				sender_log.write(str1)
+				sender_log.write(str2)
+				sender_log.write(str3)
+				sender_log.write(str4)
+				sender_log.write(str5)
+				sender_log.write(str6)
+				sender_log.write(str7)
+				sender_log.write(str8)
+				sender_log.write(str9)
+				sender_log.write(str10)
+				sender_log.write(str11)
+
+				sender_log.write(log_data_structure)
 				sender_log.close()
 
 				sys.exit()
@@ -72,6 +103,7 @@ def fourseg_termination(seq, senderSocket, addr, sender_log, start_time):
 
 def threeway_handshake(seq, senderSocket,addr, start_time, seed, sender_log):
 	global state
+	global total_segments
 
 	if(state != STATE_INIT):
 		print("ERROR: NOT TIME FOR HANDSHAKE")
@@ -87,6 +119,7 @@ def threeway_handshake(seq, senderSocket,addr, start_time, seed, sender_log):
 
 	# send the first pkt
 	senderSocket.sendto(str(pkt_1), addr)
+	total_segments = total_segments + 1
 
 	# calculate the current time
 	curr_time = float("{:6.2f}".format(time.time()*1000 - start_time))
@@ -120,6 +153,7 @@ def threeway_handshake(seq, senderSocket,addr, start_time, seed, sender_log):
 			pkt_2 = packet(seq, ack, "", flag, -2)
 
 			senderSocket.sendto(str(pkt_2), addr)
+			total_segments = total_segments + 1
 
 			# write log file
 			log_data = "snd\t"+str(curr_time)+"\tA\t"+str(seq)+'\t'+ str(len(get_data(pkt_2)))+'\t'+str(get_ack(pkt_2))+'\n'
@@ -155,6 +189,18 @@ def PLD(log,start,sender, p, addr,pdrop):
 		log.write(msg)
 '''
 def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCorrupt, pOrder, maxOrder, pDelay, maxDelay, seed, re_order_window, re_order_counter, retransmit_flag):
+	
+	global total_segments
+	global total_PLD
+	global total_drop
+	global total_corr
+	global total_reorder
+	global total_dup
+	global total_delay
+
+	total_PLD = total_PLD + 1
+	total_segments = total_segments + 1
+	
 	ran = random.random()
 
 	if(retransmit_flag == True):
@@ -178,6 +224,7 @@ def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCor
 
 	if(ran < pDrop):
 		sent = 0
+		total_drop = total_drop + 1
 		curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
 		log_data = "drop\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
 		sender_log.write(log_data)
@@ -185,6 +232,7 @@ def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCor
 	else:
 		ran = random.random()
 		if(ran < pDuplicate):
+			total_dup = total_dup + 1
 			senderSocket.sendto(str(pkt), addr)
 			senderSocket.sendto(str(pkt), addr)
 			curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
@@ -193,7 +241,7 @@ def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCor
 		else:
 			ran = random.random()
 			if(ran < pCorrupt):
-
+				total_corr = total_corr + 1
 				newpkt = sender_checksum_withError(pkt)
 
 				senderSocket.sendto(str(newpkt), addr)
@@ -205,11 +253,13 @@ def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCor
 				ran = random.random()
 				if(ran < pOrder):
 					if(len(re_order_window) == 0):
+						total_reorder = total_reorder + 1
 						re_order_window.append(pkt)
 						re_order_counter = 0
 				else:
 					ran = random.random()
 					if(ran < pDelay):
+						total_delay = total_delay + 1
 						delay = random.uniform(0, maxDelay)
 						time.sleep(delay)
 						senderSocket.sendto(str(pkt), addr)
@@ -249,6 +299,18 @@ def transfer(ini_seq, seq, senderSocket, addr, data, sender_log, start_time, mws
 	pre_ack = -1
 	counter = 0
 
+	global total_data
+	global total_segments
+	global total_PLD
+	global total_drop
+	global total_corr
+	global total_reorder
+	global total_dup
+	global total_delay
+	global total_timeout
+	global total_fast
+	global total_dupack
+
 	# initially, 
 	# EstimatedRTT = 500 ms
 	# DevRTT = 250 ms
@@ -268,6 +330,9 @@ def transfer(ini_seq, seq, senderSocket, addr, data, sender_log, start_time, mws
 		# timeout
 
 		if(time.time()*1000 - baseTime >= TimeoutInterval and len(window) > 0):
+
+			total_timeout = total_timeout + 1
+
 			baseWindowSeq = int(get_seq(window[0]))
 			baseTime = time.time()*1000
 
@@ -331,11 +396,14 @@ def transfer(ini_seq, seq, senderSocket, addr, data, sender_log, start_time, mws
 				cumulated_ACK = int(get_ack(pkt_receive))
 				if((cumulated_ACK - ini_seq) >= len(data)):
 					state = -1
+					total_data = cumulated_ACK - ini_seq
 					return cumulated_ACK
 				if(pre_ack == cumulated_ACK):
 					counter += 1
+					total_dupack = total_dupack + 1
 				if(counter >= 2):
 					counter = 0
+					total_fast = total_fast + 1
 					seq = int(get_ack(pkt_receive))
 					if((seq + mss - ini_seq) < len(data)):
 						pkt_data = data[(seq-ini_seq) : (seq - ini_seq +mss)]
@@ -415,6 +483,32 @@ if __name__ == "__main__":
 
 	# intialize the start time
 	start_time = time.time()*1000
+
+	global total_data
+	global total_segments
+	global total_PLD
+	global total_drop
+	global total_corr
+	global total_reorder
+	global total_dup
+	global total_delay
+	global total_timeout
+	global total_fast
+	global total_dupack
+
+
+
+	total_data = 0
+	total_segments = 0
+	total_PLD = 0
+	total_drop = 0
+	total_corr = 0
+	total_reorder = 0
+	total_dup = 0
+	total_delay = 0
+	total_timeout = 0
+	total_fast = 0
+	total_dupack = 0
 
 	# initialize the socket
 	# Setting a timeout of None disables timeouts on socket operations
