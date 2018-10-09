@@ -261,7 +261,7 @@ def PLD(pkt, start_time, senderSocket, addr, sender_log, pDrop, pDuplicate, pCor
 					if(ran < pDelay):
 						total_delay = total_delay + 1
 						delay = random.uniform(0, maxDelay)
-						time.sleep(delay)
+						time.sleep(1)
 						senderSocket.sendto(str(pkt), addr)
 						curr_time = float("{:6.2f}".format(time.time()*1000-start_time))
 						log_data = log_header+"/dely\t"+str(curr_time)+'\tD\t'+str(get_seq(pkt))+'\t'+str(len(get_data(pkt)))+'\t'+str(get_ack(pkt))+'\n'
@@ -478,7 +478,7 @@ if __name__ == "__main__":
 	pOrder = float(sys.argv[10])
 	maxOrder = int(sys.argv[11])
 	pDelay = float(sys.argv[12])
-	maxDelay = float(sys.argv[13])*1000
+	maxDelay = float(sys.argv[13])/1000
 	seed = int(sys.argv[14])
 
 	# intialize the start time
